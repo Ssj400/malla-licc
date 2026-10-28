@@ -1,5 +1,6 @@
 import curriculum from './curriculum.js';
 import { initialState, validateState, moveCourse, ensureEmptySemester, parseCourseText } from './model.js';
+import { edgeScrollVelocity } from './drag.js';
 
 const KEY = 'mi-malla-licc-v1';
 const $ = selector => document.querySelector(selector);
@@ -48,7 +49,7 @@ function block(course) {
   const node = element('article', 'course');
   node.dataset.id = course.id;
   node.dataset.color = course.color;
-  node.draggable = true;
+  node.draggable = false;
   node.tabIndex = 0;
   node.setAttribute('aria-label', `${course.code} ${course.name}, ${course.credits ?? 'sin definir'} créditos. Enter para editar o mover.`);
   const top = element('div', 'course-top');
@@ -61,18 +62,10 @@ function block(course) {
   bottom.append(element('span', '', course.credits === null ? 'Créditos por definir' : `${course.credits} créditos`), edit);
   node.append(top, element('h4', '', course.name), bottom);
   node.addEventListener('click', () => { if (Date.now() > suppressClickUntil) openEditor(course.id); });
-  node.addEventListener('pointerdown', startTouchDrag);
+  node.addEventListener('pointerdown', startPointerDrag);
   node.addEventListener('keydown', event => {
     if (event.target === node && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); openEditor(course.id); }
   });
-  node.addEventListener('dragstart', event => {
-    if (touchDrag) { event.preventDefault(); return; }
-    draggedId = course.id;
-    event.dataTransfer.setData('text/plain', course.id);
-    event.dataTransfer.effectAllowed = 'move';
-    node.classList.add('dragging');
-  });
-  node.addEventListener('dragend', clearDrag);
   return node;
 }
 
@@ -100,6 +93,7 @@ function render() {
 }
 
 function clearDrag() {
+  stopPointerDrag();
   draggedId = null;
   document.querySelectorAll('.dragging,.drag-over,.swap-target,.insert-before,.insert-after').forEach(node => node.classList.remove('dragging', 'drag-over', 'swap-target', 'insert-before', 'insert-after'));
 }
@@ -147,89 +141,101 @@ function finishDrop(zone, target, clientY) {
   } else if (id !== target?.dataset.id) toast('No hay espacio disponible sin superar 60 créditos (máximo 30 semestres).');
 }
 
-document.addEventListener('dragover', event => {
-  const zone = event.target.closest('.dropzone');
-  if (!zone || !draggedId) return;
-  event.preventDefault();
-  event.dataTransfer.dropEffect = 'move';
-  const target = event.target.closest('.course');
-  highlight(zone, target, event.clientY);
-});
-
-document.addEventListener('drop', event => {
-  const zone = event.target.closest('.dropzone');
-  if (!zone || !draggedId) return;
-  event.preventDefault();
-  const target = event.target.closest('.course');
-  finishDrop(zone, target, event.clientY);
-});
-
-// Long-press touch dragging, without disabling ordinary page scrolling.
-let touchDrag = null;
+// Pointer dragging keeps the wheel available (native HTML drag blocks it in
+// several browsers). Touch still uses a long press so ordinary swipes scroll.
+let pointerDrag = null;
 let suppressClickUntil = 0;
-function startTouchDrag(event) {
-  if (touchDrag || !event.isPrimary || event.pointerType !== 'touch' || event.target.closest('button')) return;
+function startPointerDrag(event) {
+  if (pointerDrag || !event.isPrimary || event.button !== 0 || event.target.closest('button')) return;
+  suppressClickUntil = 0;
   const node = event.currentTarget;
-  const start = { x: event.clientX, y: event.clientY };
-  const pending = { id: event.pointerId, node, active: false, x: event.clientX, y: event.clientY };
-  touchDrag = pending;
-  pending.timer = setTimeout(() => {
-    if (touchDrag !== pending) return;
-    pending.active = true;
-    draggedId = node.dataset.id;
-    node.classList.add('dragging');
-    const ghost = node.cloneNode(true);
-    ghost.removeAttribute('id'); ghost.setAttribute('aria-hidden', 'true'); ghost.className = 'course touch-ghost';
-    ghost.style.width = `${node.offsetWidth}px`;
-    document.body.append(ghost); pending.ghost = ghost;
-    ghost.style.left = `${pending.x + 8}px`; ghost.style.top = `${pending.y - 35}px`;
-    suppressClickUntil = Date.now() + 1000;
-    navigator.vibrate?.(20);
-    const scrollFrame = () => {
-      if (touchDrag !== pending || !pending.active) return;
-      const edge = 85;
-      if (pending.y < edge) window.scrollBy(0, -Math.ceil((edge - pending.y) / 6));
-      else if (pending.y > innerHeight - edge) window.scrollBy(0, Math.ceil((pending.y - innerHeight + edge) / 6));
-      const under = document.elementFromPoint(pending.x, pending.y);
-      const zone = under?.closest('.dropzone');
-      if (zone) highlight(zone, under.closest('.course'), pending.y);
-      pending.frame = requestAnimationFrame(scrollFrame);
-    };
-    pending.frame = requestAnimationFrame(scrollFrame);
-  }, 250);
-  pending.start = start;
+  const rect = node.getBoundingClientRect();
+  const pending = { id: event.pointerId, node, active: false, touch: event.pointerType === 'touch', x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, offsetX: event.clientX - rect.left, offsetY: event.clientY - rect.top, wheelUntil: 0 };
+  pointerDrag = pending;
+  node.setPointerCapture(event.pointerId);
+  if (pending.touch) pending.timer = setTimeout(() => activatePointerDrag(pending), 250);
 }
+
+function activatePointerDrag(pending) {
+  if (pointerDrag !== pending || pending.active) return;
+  pending.active = true;
+  draggedId = pending.node.dataset.id;
+  pending.node.classList.add('dragging');
+  document.documentElement.classList.add('is-dragging');
+  const ghost = pending.node.cloneNode(true);
+  ghost.removeAttribute('id'); ghost.setAttribute('aria-hidden', 'true'); ghost.className = 'course drag-ghost';
+  ghost.style.width = `${pending.node.offsetWidth}px`;
+  ghost.removeAttribute('tabindex');
+  ghost.querySelectorAll('button').forEach(button => { button.tabIndex = -1; });
+  document.body.append(ghost); pending.ghost = ghost;
+  suppressClickUntil = Date.now() + 1000;
+  if (pending.touch) navigator.vibrate?.(20);
+  const frame = time => {
+    if (pointerDrag !== pending) return;
+    const elapsed = pending.previousTime === undefined ? 0 : Math.min(32, time - pending.previousTime) / 1000;
+    pending.previousTime = time;
+    if (time > pending.wheelUntil && pending.x >= 0 && pending.x <= innerWidth) {
+      const velocity = edgeScrollVelocity(pending.y, innerHeight);
+      if (velocity) window.scrollBy({ top: velocity * elapsed, behavior: 'instant' });
+    }
+    ghost.style.left = `${pending.x - pending.offsetX}px`;
+    ghost.style.top = `${pending.y - pending.offsetY}px`;
+    const under = document.elementFromPoint(pending.x, pending.y);
+    const zone = under?.closest('.dropzone');
+    if (zone) highlight(zone, under.closest('.course'), pending.y);
+    else document.querySelectorAll('.drag-over,.swap-target,.insert-before,.insert-after').forEach(node => node.classList.remove('drag-over', 'swap-target', 'insert-before', 'insert-after'));
+    pending.frame = requestAnimationFrame(frame);
+  };
+  pending.frame = requestAnimationFrame(frame);
+}
+
 document.addEventListener('pointermove', event => {
-  const pending = touchDrag;
+  const pending = pointerDrag;
   if (!pending || event.pointerId !== pending.id) return;
   pending.x = event.clientX; pending.y = event.clientY;
   if (!pending.active) {
-    if (Math.hypot(pending.x - pending.start.x, pending.y - pending.start.y) > 8) { clearTimeout(pending.timer); touchDrag = null; }
-    return;
+    if (Math.hypot(pending.x - pending.startX, pending.y - pending.startY) < (pending.touch ? 8 : 5)) return;
+    if (pending.touch) { stopPointerDrag(); return; }
+    activatePointerDrag(pending);
   }
-  pending.ghost.style.left = `${pending.x + 8}px`; pending.ghost.style.top = `${pending.y - 35}px`;
-  const target = document.elementFromPoint(pending.x, pending.y);
-  const zone = target?.closest('.dropzone');
-  if (zone) highlight(zone, target.closest('.course'), pending.y);
+  event.preventDefault();
+}, { passive: false });
+document.addEventListener('touchmove', event => { if (pointerDrag?.active && event.cancelable) event.preventDefault(); }, { passive: false });
+document.addEventListener('wheel', () => {
+  // Do not fight a user's wheel/trackpad direction with edge autoscrolling.
+  if (pointerDrag?.active) pointerDrag.wheelUntil = performance.now() + 220;
 }, { passive: true });
-document.addEventListener('touchmove', event => { if (touchDrag?.active) event.preventDefault(); }, { passive: false });
-function endTouch(event) {
-  const pending = touchDrag;
+
+function stopPointerDrag() {
+  const pending = pointerDrag;
+  if (!pending) return;
+  pointerDrag = null;
+  clearTimeout(pending.timer); cancelAnimationFrame(pending.frame);
+  pending.ghost?.remove();
+  pending.node.classList.remove('dragging');
+  document.documentElement.classList.remove('is-dragging');
+  if (pending.node.hasPointerCapture(pending.id)) pending.node.releasePointerCapture(pending.id);
+}
+
+function endPointerDrag(event) {
+  const pending = pointerDrag;
   if (!pending || event.pointerId !== pending.id) return;
-  clearTimeout(pending.timer);
-  cancelAnimationFrame(pending.frame);
   if (pending.active) {
     suppressClickUntil = Date.now() + 800;
     const target = document.elementFromPoint(event.clientX, event.clientY);
     const zone = target?.closest('.dropzone');
-    pending.ghost.remove();
     if (zone && event.type !== 'pointercancel') finishDrop(zone, target.closest('.course'), event.clientY);
     else clearDrag();
-  }
-  touchDrag = null;
+  } else stopPointerDrag();
 }
-document.addEventListener('pointerup', endTouch);
-document.addEventListener('pointercancel', endTouch);
+document.addEventListener('pointerup', endPointerDrag);
+document.addEventListener('pointercancel', endPointerDrag);
+document.addEventListener('lostpointercapture', () => { if (pointerDrag) clearDrag(); });
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && pointerDrag) { suppressClickUntil = Date.now() + 800; clearDrag(); event.preventDefault(); }
+});
+window.addEventListener('blur', clearDrag);
+document.addEventListener('visibilitychange', () => { if (document.hidden) clearDrag(); });
 
 function openEditor(id = null) {
   editingId = id;

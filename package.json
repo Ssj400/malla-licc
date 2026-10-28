@@ -4,7 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test model.test.js",
+    "test": "node --test model.test.js drag.test.js",
+    "test:scroll": "node scroll.browser.cjs",
     "start": "python3 -m http.server 4173"
+  },
+  "devDependencies": {
+    "playwright": "^1.64.1"
   }
 }

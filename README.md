@@ -7,6 +7,7 @@ Organizador estático de la **Licenciatura en Ingeniería en Ciencia de la Compu
 ## Uso
 
 - Cada ramo es un bloque: arrástralo entre semestres o a la bandeja superior.
+- Durante el arrastre puedes usar la rueda o el trackpad. Acerca el bloque al borde superior o inferior para desplazar la página automáticamente; al volver al centro se detiene. Escape cancela el arrastre.
 - Suelta en el centro de otro bloque para reemplazarlo; el desplazado vuelve a la bandeja. Suelta en los bordes o entre bloques para reordenar.
 - En pantallas táctiles, mantén pulsado y arrastra; acercarte al borde permite desplazar la página. También puedes tocar un bloque y elegir su ubicación y posición. El editor es accesible con teclado.
 - Crea bloques personalizados o pega ramos como texto, uno por línea. Se aceptan siglas de la malla, nombres, y `SIGLA | Nombre | Créditos`.
@@ -31,6 +32,16 @@ Abrir <http://localhost:4173>. Pruebas del modelo con Node.js 20 o posterior:
 ```sh
 npm test
 ```
+
+Para probar el scroll de arrastre en un navegador real (con el servidor iniciado):
+
+```sh
+npm ci
+npx playwright install chromium
+npm run test:scroll
+```
+
+Playwright se usa solo en desarrollo; el sitio publicado sigue sin dependencias de ejecución.
 
 ## Publicación
 
