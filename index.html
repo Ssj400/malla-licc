@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f4ef">
+  <meta name="description" content="Tu malla LICC, a tu manera. Organiza ramos como bloques y arma tu próximo semestre.">
+  <title>Mi malla · LICC</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="./"><span class="brand-icon">▦</span> mi malla<span class="brand-dot">.</span></a><span class="degree">LICC <span>/</span> UC</span><span id="save-status" role="status">Guardado en este navegador</span></header>
+  <main>
+    <section class="intro">
+      <div><p class="eyebrow">UN PLAN QUE SE MUEVE CONTIGO</p><h1>Tu carrera.<br><span>A tu manera.</span></h1><p class="intro-copy">Cada ramo es un bloque. Muévelo, cámbialo y encuentra tu propio camino.</p></div>
+      <div class="intro-side"><span class="mini-label">TU LIENZO ACADÉMICO</span><strong id="total-credits">—</strong><span id="curriculum-label">Licenciatura en Ingeniería en Ciencia de la Computación</span></div>
+    </section>
+
+    <section class="tray-section" aria-labelledby="tray-title">
+      <div class="section-heading"><div><span class="eyebrow">01 / ESPACIO DE IDEAS</span><h2 id="tray-title">Ramos por ubicar <span id="tray-count" class="count">0</span></h2><p>Crea un bloque o deja aquí los que quieras mover después.</p></div><div class="tray-tools"><button class="secondary" id="paste-courses">Pegar ramos</button><button class="primary" id="add-course"><span aria-hidden="true">＋</span> Crear ramo</button></div></div>
+      <div class="dropzone tray" id="tray" data-zone="tray" aria-label="Ramos por ubicar"></div>
+    </section>
+
+    <section class="plan-section" aria-labelledby="plan-title">
+      <div class="section-heading plan-heading"><div><span class="eyebrow">02 / TU RECORRIDO</span><h2 id="plan-title">El mapa de lo que viene</h2></div><div class="tools"><button class="quiet" id="export">Exportar</button><button class="quiet" id="import">Importar</button><button class="quiet" id="reset">Restablecer</button><button class="secondary" id="add-semester">＋ Semestre</button><input id="import-file" type="file" accept="application/json,.json" hidden></div></div>
+      <div class="interaction-note"><span aria-hidden="true">↔</span> Máximo 60 créditos por semestre, sin límite de bloques. Si no cabe, pasa al siguiente. <span>Arrastra entre bloques para reordenar; al centro para reemplazar. En móvil, mantén pulsado. Créditos por definir no se suman.</span></div>
+      <div id="semesters" class="semesters"></div>
+    </section>
+    <footer><span>Hecho para planear, no para limitarte.</span><span>Malla base: <a href="https://buscaramos.osuc.dev/curriculum" target="_blank" rel="noreferrer">BuscaRamos ↗</a> · No valida prerrequisitos.</span></footer>
+  </main>
+
+  <dialog id="editor" aria-labelledby="editor-title">
+    <form id="course-form"><div class="dialog-heading"><div><p class="eyebrow">UN BLOQUE, MIL POSIBILIDADES</p><h2 id="editor-title">Crear ramo</h2></div><button type="button" class="icon-button" id="close-editor" aria-label="Cerrar">✕</button></div>
+      <label>Nombre del ramo<input name="name" required maxlength="160" placeholder="Ej. Inteligencia artificial" autocomplete="off"></label>
+      <div class="form-row"><label>Sigla<input name="code" maxlength="30" placeholder="Ej. IIC2613" autocomplete="off"></label><label>Créditos<input name="credits" type="number" min="0" max="60" step="1" value="10" placeholder="Sin definir"></label></div>
+      <label>Color<select name="color"><option value="mint">Menta · Computación</option><option value="blue">Azul · Matemáticas</option><option value="peach">Durazno · Ciencias</option><option value="lavender">Lavanda · Formación general</option><option value="sand">Arena · Electivo</option></select></label>
+      <label>Ubicación<select name="zone" id="destination"></select></label>
+      <label>Posición en el destino<select name="position" id="position"><option value="last">Al final</option><option value="first">Al principio</option></select></label>
+      <p class="form-help">Editar cambia este bloque. Para reemplazar otro ramo, arrastra este bloque sobre él.</p>
+      <div class="dialog-actions"><button type="button" class="danger" id="delete-course">Eliminar bloque</button><button class="primary" type="submit">Guardar bloque</button></div>
+    </form>
+  </dialog>
+  <dialog id="bulk-editor" aria-labelledby="bulk-title"><form id="bulk-form"><div class="dialog-heading"><div><p class="eyebrow">DEL TEXTO A LOS BLOQUES</p><h2 id="bulk-title">Pegar ramos</h2></div><button type="button" class="icon-button" id="close-bulk" aria-label="Cerrar">✕</button></div>
+    <label>Un ramo por línea<textarea id="bulk-text" name="text" required rows="7" maxlength="50000" placeholder="IIC2233&#10;Mi electivo favorito&#10;MAT1610 | Cálculo I | 10"></textarea></label>
+    <p class="form-help">Puedes usar una sigla conocida de esta malla, solo un nombre, o el formato <strong>SIGLA | Nombre | Créditos</strong>. Los créditos desconocidos quedan por definir.</p>
+    <label>¿Dónde los dejamos?<select name="mode" id="bulk-mode"><option value="tray">En la bandeja superior</option><option value="semesters">Repartir en semestres nuevos</option></select></label>
+    <p class="form-help">Los semestres admiten hasta <strong>60 créditos</strong>, independiente del número de bloques. Si sobran ramos, se crean semestres. Los créditos por definir no se suman: complétalos para verificar la carga real.</p>
+    <p class="form-help" id="bulk-preview" aria-live="polite">Escribe o pega tu lista para comenzar.</p>
+    <div class="dialog-actions"><button class="primary" type="submit">Crear bloques</button></div>
+  </form></dialog>
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title"><form method="dialog"><h2 id="confirm-title">¿Restablecer la malla?</h2><p>Se recuperará la malla LICC original y se eliminarán tus cambios de este navegador. Puedes exportarlos primero.</p><div class="dialog-actions"><button class="secondary" value="cancel">Cancelar</button><button class="primary" value="confirm">Restablecer</button></div></form></dialog>
+  <div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>
