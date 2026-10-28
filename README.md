@@ -2,6 +2,8 @@
 
 Organizador estático de la **Licenciatura en Ingeniería en Ciencia de la Computación UC**, basado exclusivamente en la malla de [BuscaRamos](https://buscaramos.osuc.dev/curriculum).
 
+**Abrir el sitio:** <https://ssj400.github.io/malla-licc/>
+
 ## Uso
 
 - Cada ramo es un bloque: arrástralo entre semestres o a la bandeja superior.
